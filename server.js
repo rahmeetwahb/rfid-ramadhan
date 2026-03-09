@@ -409,11 +409,29 @@ totalAttendance: attendance.data.values ? attendance.data.values.length : 0
 
 })
 
-app.get("/api/logs", async (req, res) => {
+app.get("/api/logs", async (req,res)=>{
 
-const logs = await getLatestAttendance()
+try{
+
+const result = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range:"Attendance!A2:C"
+})
+
+const rows = result.data.values || []
+
+const logs = rows.slice(-10).reverse().map(r=>({
+    name:r[0],
+    session:r[1],
+    time:r[2]
+}))
 
 res.json(logs)
+
+}catch(err){
+    console.log(err)
+    res.json([])
+}
 
 })
 
