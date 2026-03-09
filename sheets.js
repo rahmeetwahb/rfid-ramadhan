@@ -43,7 +43,7 @@ export async function getParticipant(uid) {
 export async function saveAttendance(uid, name, session) {
     await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: "presensi-akhwat!A2",
+        range: "presensi-ikhwan!A2",
         valueInputOption: "RAW",
         requestBody: {
             values: [
