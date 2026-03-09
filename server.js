@@ -379,6 +379,207 @@ res.send(`
 `)
 })
 
+app.get("/api/stats", async (req, res) => {
+
+const participants = await getParticipantList()
+const attendance = await getAttendanceToday()
+
+res.json({
+totalParticipants: participants.length,
+totalAttendance: attendance.length
+})
+
+})
+
+app.get("/api/logs", async (req, res) => {
+
+const logs = await getLatestAttendance()
+
+res.json(logs)
+
+})
+
+app.get("/dashboard", (req, res) => {
+res.send(`
+    <html>
+    <head>
+    <title>Dashboard RFID</title>
+
+    <style>
+
+    body{
+    font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+    margin:0;
+    }
+
+    .header{
+    background:#020617;
+    padding:20px;
+    font-size:28px;
+    text-align:center;
+    font-weight:bold;
+    }
+
+    .container{
+    padding:30px;
+    }
+
+    .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    }
+
+    .card{
+    background:#1e293b;
+    padding:20px;
+    border-radius:10px;
+    }
+
+    .big{
+    font-size:45px;
+    font-weight:bold;
+    margin-top:10px;
+    }
+
+    table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    }
+
+    th,td{
+    padding:10px;
+    border-bottom:1px solid #334155;
+    }
+
+    </style>
+
+    </head>
+
+    <body>
+
+    <div class="header">
+    📊 Dashboard Absensi RFID
+    </div>
+
+    <div class="container">
+
+    <div class="grid">
+
+    <div class="card">
+    Total Peserta
+    <div class="big" id="totalParticipants">0</div>
+    </div>
+
+    <div class="card">
+    Hadir Hari Ini
+    <div class="big" id="totalAttendance">0</div>
+    </div>
+
+    </div>
+
+    <div class="card">
+
+    <h2>Log Scan Terbaru</h2>
+
+    <table>
+
+    <thead>
+    <tr>
+    <th>Nama</th>
+    <th>Session</th>
+    <th>Waktu</th>
+    </tr>
+    </thead>
+
+    <tbody id="logs"></tbody>
+
+    </table>
+
+    </div>
+
+    </div>
+
+    <script>
+
+    async function loadStats(){
+
+    const res = await fetch("/api/stats")
+    const data = await res.json()
+
+    document.getElementById("totalParticipants").innerText =
+    data.totalParticipants
+
+    document.getElementById("totalAttendance").innerText =
+    data.totalAttendance
+
+    }
+
+    async function loadLogs(){
+
+    const res = await fetch("/api/logs")
+    const logs = await res.json()
+
+    let html = ""
+
+    logs.forEach(log=>{
+
+    html += \`
+    <tr>
+    <td>\${log.name}</td>
+    <td>\${log.session}</td>
+    <td>\${log.time}</td>
+    </tr>
+    \`
+
+    })
+
+    document.getElementById("logs").innerHTML = html
+
+    }
+
+    setInterval(()=>{
+    loadStats()
+    loadLogs()
+    },3000)
+
+    loadStats()
+    loadLogs()
+
+    </script>
+
+    </body>
+</html>
+`)
+})
+
+app.get("/participants", async (req,res)=>{
+
+const participants = await getParticipantList()
+
+res.json(participants)
+
+})
+
+app.get("/export", async (req,res)=>{
+
+const logs = await getLatestAttendance()
+
+let csv = "Nama,Session,Waktu\n"
+
+logs.forEach(l=>{
+csv += l.name + "," + l.session + "," + l.time + "\n"
+})
+
+res.header("Content-Type","text/csv")
+res.attachment("attendance.csv")
+res.send(csv)
+
+})
+
 const PORT = process.env.PORT || 3000
 
 app.listen(PORT, () => {
