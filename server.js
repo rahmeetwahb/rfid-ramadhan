@@ -381,13 +381,31 @@ res.send(`
 
 app.get("/api/stats", async (req, res) => {
 
-const participants = await getParticipantList()
-const attendance = await getAttendanceToday()
+try{
+    const participants = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: "Participants!A2:B"
+})
+    const attendance = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: "Attendance!A2:C"
+})
 
 res.json({
-totalParticipants: participants.length,
-totalAttendance: attendance.length
+
+totalParticipants: participants.data.values ? participants.data.values.length : 0,
+totalAttendance: attendance.data.values ? attendance.data.values.length : 0
+
 })
+
+}catch(err){
+    console.log(err)
+    res.json({
+    totalParticipants:0,
+    totalAttendance:0
+})
+
+}
 
 })
 
