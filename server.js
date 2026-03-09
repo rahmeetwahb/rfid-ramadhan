@@ -384,11 +384,11 @@ app.get("/api/stats", async (req, res) => {
 try{
     const participants = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: "Participants!A2:B"
+    range: "peserta-ikhwan!A2:B"
 })
     const attendance = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: "Attendance!A2:C"
+    range: "presensi-ikhwan!A2:C"
 })
 
 res.json({
@@ -415,7 +415,7 @@ try{
 
 const result = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range:"Attendance!A2:C"
+    range:"presensi-ikhwan!A2:C"
 })
 
 const rows = result.data.values || []
@@ -439,7 +439,7 @@ app.get("/dashboard", (req, res) => {
 res.send(`
     <html>
     <head>
-    <title>Dashboard RFID</title>
+    <title>Dashboard Presensi I'tikaf</title>
 
     <style>
 
@@ -498,7 +498,7 @@ res.send(`
     <body>
 
     <div class="header">
-    📊 Dashboard Absensi RFID
+    📊 Dashboard Presensi I'tikaf
     </div>
 
     <div class="container">
