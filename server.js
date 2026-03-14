@@ -10,6 +10,7 @@ import {
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc.js"
 import timezone from "dayjs/plugin/timezone.js"
+import { getDashboardData } from "./sheets.js"
 import { getLatestAttendance } from "./sheets.js"
 
 dayjs.extend(utc)
@@ -379,241 +380,224 @@ res.send(`
 `)
 })
 
-app.get("/api/stats", async (req, res) => {
+app.get("/api/dashboard", async (req, res) => {
 
-try{
-    const participants = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "peserta-ikhwan!A2:B"
-})
-    const attendance = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "presensi-ikhwan!A2:C"
-})
+    try {
 
-res.json({
+        const data = await getDashboardData()
 
-totalParticipants: participants.data.values ? participants.data.values.length : 0,
-totalAttendance: attendance.data.values ? attendance.data.values.length : 0
+        res.json(data)
 
-})
+    } catch (err) {
 
-}catch(err){
-    console.log(err)
-    res.json({
-    totalParticipants:0,
-    totalAttendance:0
-})
+        console.log(err)
 
-}
+        res.status(500).json({
+            error:"dashboard error"
+        })
+
+    }
 
 })
 
-app.get("/api/logs", async (req,res)=>{
+app.get("/dashboard",(req,res)=>{
 
-try{
-
-const result = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range:"presensi-ikhwan!A2:C"
-})
-
-const rows = result.data.values || []
-
-const logs = rows.slice(-10).reverse().map(r=>({
-    name:r[0],
-    session:r[1],
-    time:r[2]
-}))
-
-res.json(logs)
-
-}catch(err){
-    console.log(err)
-    res.json([])
-}
-
-})
-
-app.get("/dashboard", (req, res) => {
 res.send(`
-    <html>
-    <head>
-    <title>Dashboard Presensi I'tikaf</title>
 
-    <style>
+<html>
 
-    body{
-    font-family:Segoe UI;
-    background:#0f172a;
-    color:white;
-    margin:0;
-    }
+<head>
 
-    .header{
-    background:#020617;
-    padding:20px;
-    font-size:28px;
-    text-align:center;
-    font-weight:bold;
-    }
+<title>Dashboard Presensi</title>
 
-    .container{
-    padding:30px;
-    }
+<style>
 
-    .grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px;
-    }
+body{
+background:#0f172a;
+color:white;
+font-family:Segoe UI;
+margin:0;
+}
 
-    .card{
-    background:#1e293b;
-    padding:20px;
-    border-radius:10px;
-    }
+.header{
+background:#020617;
+padding:20px;
+font-size:28px;
+font-weight:bold;
+}
 
-    .big{
-    font-size:45px;
-    font-weight:bold;
-    margin-top:10px;
-    }
+.container{
+padding:30px;
+}
 
-    table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:10px;
-    }
+.cards{
+display:flex;
+gap:20px;
+margin-bottom:30px;
+}
 
-    th,td{
-    padding:10px;
-    border-bottom:1px solid #334155;
-    }
+.card{
+flex:1;
+background:#1e293b;
+padding:25px;
+border-radius:10px;
+font-size:22px;
+text-align:center;
+}
 
-    </style>
+.sessionGrid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+gap:20px;
+margin-bottom:40px;
+}
 
-    </head>
+.sessionCard{
+background:#1e293b;
+padding:20px;
+border-radius:10px;
+text-align:center;
+font-size:20px;
+}
 
-    <body>
+.table{
+width:100%;
+border-collapse:collapse;
+}
 
-    <div class="header">
-    📊 Dashboard Presensi I'tikaf
-    </div>
+.table th,.table td{
+padding:12px;
+border-bottom:1px solid #334155;
+}
 
-    <div class="container">
+.table th{
+background:#020617;
+}
 
-    <div class="grid">
+</style>
 
-    <div class="card">
-    Total Peserta
-    <div class="big" id="totalParticipants">0</div>
-    </div>
+</head>
 
-    <div class="card">
-    Hadir Hari Ini
-    <div class="big" id="totalAttendance">0</div>
-    </div>
+<body>
 
-    </div>
+<div class="header">
+📊 Dashboard Presensi I'tikaf
+</div>
 
-    <div class="card">
+<div class="container">
 
-    <h2>Log Scan Terbaru</h2>
+<div class="cards">
 
-    <table>
+<div class="card">
+Total Peserta
+<br>
+<span id="totalPeserta">0</span>
+</div>
 
-    <thead>
-    <tr>
-    <th>Nama</th>
-    <th>Session</th>
-    <th>Waktu</th>
-    </tr>
-    </thead>
+<div class="card">
+Hadir Hari Ini
+<br>
+<span id="today">0</span>
+</div>
 
-    <tbody id="logs"></tbody>
+</div>
 
-    </table>
+<h2>Presensi Per Session</h2>
 
-    </div>
+<div class="sessionGrid" id="sessionStats"></div>
 
-    </div>
+<h2>Presensi Terakhir</h2>
 
-    <script>
+<table class="table">
 
-    async function loadStats(){
+<thead>
 
-    const res = await fetch("/api/stats")
-    const data = await res.json()
+<tr>
+<th>UID</th>
+<th>Nama</th>
+<th>Waktu</th>
+<th>Session</th>
+</tr>
 
-    document.getElementById("totalParticipants").innerText =
-    data.totalParticipants
+</thead>
 
-    document.getElementById("totalAttendance").innerText =
-    data.totalAttendance
+<tbody id="tableData"></tbody>
 
-    }
+</table>
 
-    async function loadLogs(){
+</div>
 
-    const res = await fetch("/api/logs")
-    const logs = await res.json()
+<script>
 
-    let html = ""
+async function loadDashboard(){
 
-    logs.forEach(log=>{
+const res = await fetch("/api/dashboard")
+const data = await res.json()
 
-    html += \`
-    <tr>
-    <td>\${log.name}</td>
-    <td>\${log.session}</td>
-    <td>\${log.time}</td>
-    </tr>
-    \`
+document.getElementById("totalPeserta").innerText = data.totalPeserta
+document.getElementById("today").innerText = data.totalHariIni
 
-    })
+// =========================
+// SESSION STATS
+// =========================
 
-    document.getElementById("logs").innerHTML = html
+let sessionHTML = ""
 
-    }
+for(const s in data.sessions){
 
-    setInterval(()=>{
-    loadStats()
-    loadLogs()
-    },3000)
+sessionHTML += \`
 
-    loadStats()
-    loadLogs()
+<div class="sessionCard">
 
-    </script>
+\${s}
+<br><br>
+<b>\${data.sessions[s]}</b>
 
-    </body>
+</div>
+
+\`
+
+}
+
+document.getElementById("sessionStats").innerHTML = sessionHTML
+
+// =========================
+// TABLE
+// =========================
+
+let table=""
+
+data.last10.forEach(row=>{
+
+table += \`
+
+<tr>
+<td>\${row[0]}</td>
+<td>\${row[1]}</td>
+<td>\${row[2]}</td>
+<td>\${row[3]}</td>
+</tr>
+
+\`
+
+})
+
+document.getElementById("tableData").innerHTML = table
+
+}
+
+// refresh tiap 2 detik
+setInterval(loadDashboard,2000)
+
+loadDashboard()
+
+</script>
+
+</body>
+
 </html>
+
 `)
-})
-
-app.get("/participants", async (req,res)=>{
-
-const participants = await getParticipantList()
-
-res.json(participants)
-
-})
-
-app.get("/export", async (req,res)=>{
-
-const logs = await getLatestAttendance()
-
-let csv = "Nama,Session,Waktu\n"
-
-logs.forEach(l=>{
-csv += l.name + "," + l.session + "," + l.time + "\n"
-})
-
-res.header("Content-Type","text/csv")
-res.attachment("attendance.csv")
-res.send(csv)
-
 })
 
 const PORT = process.env.PORT || 3000
