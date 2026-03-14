@@ -114,6 +114,26 @@ export async function getLatestAttendance() {
     }
 }
 
+export async function getParticipantList(){
+
+    const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "peserta-ikhwan!A2:D"
+    })
+
+    return res.data.values || []
+}
+
+export async function getAttendanceList(){
+
+    const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "presensi-ikhwan!A2:D"
+    })
+
+    return res.data.values || []
+}
+
 export async function getDashboardData() {
 
     const pesertaRes = await sheets.spreadsheets.values.get({
@@ -161,3 +181,5 @@ export async function getDashboardData() {
     }
 
 }
+
+

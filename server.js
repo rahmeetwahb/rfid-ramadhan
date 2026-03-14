@@ -2,16 +2,16 @@ import express from "express"
 import bodyParser from "body-parser"
 import dotenv from "dotenv"
 import { 
-    saveAttendance, 
-    getParticipant, 
-    alreadyScannedSession,
-    getSessions
+    saveAttendance,
+    getSessions,
+    getParticipantList,
+    getAttendanceList
 } from "./sheets.js"
+
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc.js"
 import timezone from "dayjs/plugin/timezone.js"
 import { getDashboardData } from "./sheets.js"
-import { getLatestAttendance } from "./sheets.js"
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -22,6 +22,32 @@ dotenv.config()
 const app = express()
 app.use(bodyParser.json())
 app.use(express.static("public"))
+
+// ==============================
+// RAM CACHE (SUPER CEPAT)
+// ==============================
+
+let participantCache = []
+let attendanceCache = []
+let sessionCache = []
+
+// ==============================
+// LOAD DATA KE RAM
+// ==============================
+
+async function loadCache(){
+
+    participantCache = await getParticipantList()
+    attendanceCache = await getAttendanceList()
+    sessionCache = await getSessions()
+
+    console.log("CACHE LOADED")
+}
+
+loadCache()
+
+// reload cache tiap 5 menit
+setInterval(loadCache,300000)
 
 // ==============================
 // CEK TANGGAL
@@ -82,7 +108,24 @@ app.post("/scan", async (req, res) => {
             return res.json(lastScanResult)
         }
 
-        const participant = await getParticipant(uid)
+        const row = participantCache.find(r => r[0] === uid)
+
+        if (!row) {
+            lastScanResult = {
+                status: "DENIED",
+                name: "",
+                session: "",
+                message: "UID tidak terdaftar",
+                time: Date.now()
+            }
+            return res.json(lastScanResult)
+        }
+
+        const participant = {
+            name: row[1],
+            type: row[2],
+            dates: row[3]
+        }
 
         if (!participant) {
             lastScanResult = { status: "DENIED",name: "", session: "", message: "UID tidak terdaftar", time: Date.now() }
@@ -97,7 +140,7 @@ app.post("/scan", async (req, res) => {
         // ==============================
         // CEK JAM DARI SHEET
         // ==============================
-        const sessions = await getSessions()
+        const sessions = sessionCache
 
         let allowedTime = false
         let activeSession = ""
@@ -118,19 +161,37 @@ app.post("/scan", async (req, res) => {
             return res.json(lastScanResult)
         }
 
-        // 🔥 DOUBLE CHECK DI SINI SAJA
-        if (await alreadyScannedSession(uid, activeSession)) {
+        // CEK SUDAH ABSEN ATAU BELUM
+        // ==============================
+
+        const today = dayjs().tz().format("YYYY-MM-DD")
+
+        const already = attendanceCache.some(row =>
+            row[0] === uid &&
+            row[2].startsWith(today) &&
+            row[3] === activeSession
+        )
+
+        if (already) {
+
             lastScanResult = {
                 status: "DENIED",
-                name: "", 
+                name: "",
                 session: "",
                 message: "Sudah absen di session ini",
                 time: Date.now()
             }
+
             return res.json(lastScanResult)
         }
 
         await saveAttendance(uid, participant.name, activeSession)
+        attendanceCache.push([
+            uid,
+            participant.name,
+            dayjs().tz().format("YYYY-MM-DD HH:mm:ss"),
+            activeSession
+        ])
 
         lastScanResult = {
             status: "SUCCESS",
@@ -380,23 +441,36 @@ res.send(`
 `)
 })
 
-app.get("/api/dashboard", async (req, res) => {
+app.get("/api/dashboard",(req,res)=>{
 
-    try {
+    const today = dayjs().tz().format("YYYY-MM-DD")
 
-        const data = await getDashboardData()
+    const todayAttendance = attendanceCache.filter(r =>
+        r[2].startsWith(today)
+    )
 
-        res.json(data)
+    const sessionStats = {}
 
-    } catch (err) {
+    todayAttendance.forEach(r => {
 
-        console.log(err)
+        const session = r[3]
 
-        res.status(500).json({
-            error:"dashboard error"
-        })
+        if(!sessionStats[session]){
+            sessionStats[session] = 0
+        }
 
-    }
+        sessionStats[session]++
+
+    })
+
+    res.json({
+
+        totalPeserta: participantCache.length,
+        totalHariIni: todayAttendance.length,
+        sessions: sessionStats,
+        last10: attendanceCache.slice(-10).reverse()
+
+    })
 
 })
 
